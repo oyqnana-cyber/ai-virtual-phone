@@ -43,6 +43,10 @@ export async function synthesizeSpeech(
         return synthesizeOpenAI(text, voiceConfig);
     }
 
+    if (provider === "ElevenLabs") {
+        return synthesizeElevenLabs(text, voiceConfig);
+    }
+
     return null;
 }
 
@@ -143,6 +147,42 @@ async function synthesizeMinimax(text: string, config: VoiceApiConfig, emotion?:
     }
 
     throw new Error(data.base_resp?.status_msg || "Minimax 未返回音频数据");
+}
+
+// ── ElevenLabs TTS ──────────────────────────────────
+async function synthesizeElevenLabs(text: string, config: VoiceApiConfig): Promise<Blob | null> {
+    if (!config.apiKey) throw new Error("ElevenLabs API Key 未配置");
+
+    const baseUrl = config.baseUrl || "https://api.elevenlabs.io/v1";
+    const voiceId = config.defaultVoice || "21m00Tcm4TlvDq8ikWAM"; // Rachel
+    const modelId = config.model || "eleven_multilingual_v2";
+    
+    const response = await fetchWithTimeout(`${baseUrl.replace(/\/$/, "")}/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+        method: "POST",
+        headers: {
+            "xi-api-key": config.apiKey,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            model_id: modelId,
+            text,
+        }),
+    });
+
+    if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        let errMsg = errText;
+        try {
+            const errObj = JSON.parse(errText);
+            if (errObj.detail && errObj.detail.message) {
+                errMsg = errObj.detail.message;
+            }
+        } catch (e) {}
+        throw new Error(`ElevenLabs TTS 请求失败 (${response.status}): ${errMsg}`);
+    }
+
+    const blob = await response.blob();
+    return new Blob([await blob.arrayBuffer()], { type: "audio/mpeg" });
 }
 
 // ── OpenAI TTS ──────────────────────────────────────

@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import { Toggle, Input } from "@/components/ui/form";
 import { Alert } from "@/components/ui/feedback";
 
-const SUPPORTED_VOICE_PROVIDERS = new Set(["Minimax", "OpenAI"]);
+const SUPPORTED_VOICE_PROVIDERS = new Set(["Minimax", "OpenAI", "ElevenLabs"]);
 const MINIMAX_BASE_URL_OPTIONS = [
     { id: "cn", label: "国内版", baseUrl: "https://api.minimaxi.com/v1" },
     { id: "global", label: "海外版", baseUrl: "https://api.minimax.io/v1" },
@@ -28,6 +28,7 @@ const MINIMAX_PITCH_STEP = 1;
 const DEFAULT_SPEECH_PITCH = 0;
 const VOICE_PROVIDER_OPTIONS = [
     { value: "OpenAI", label: "OpenAI TTS" },
+    { value: "ElevenLabs", label: "ElevenLabs" },
     { value: "MinimaxCN", label: "Minimax 语音国内版" },
     { value: "MinimaxGlobal", label: "Minimax 语音海外版" },
 ];
@@ -170,6 +171,18 @@ const DEFAULT_OPENAI_VOICES = [
     { id: "shimmer", name: "Shimmer" },
 ];
 
+const DEFAULT_ELEVENLABS_VOICES = [
+    { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
+    { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi" },
+    { id: "EXAVITQu4vr4xnSDxMaL", name: "Bella" },
+    { id: "ErXwobaYiN019PkySvjV", name: "Antoni" },
+    { id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli" },
+    { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh" },
+    { id: "VR6AewLTigWG4xSOukaG", name: "Arnold" },
+    { id: "pNInz6obpgDQGcFmaJgB", name: "Adam" },
+    { id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam" },
+];
+
 type VoiceOption = { id: string; name: string; createdAt?: number };
 
 function uniqueOptions(options: VoiceOption[]): VoiceOption[] {
@@ -182,7 +195,9 @@ function uniqueOptions(options: VoiceOption[]): VoiceOption[] {
 }
 
 function defaultVoiceOptions(provider: string): VoiceOption[] {
-    return provider === "OpenAI" ? DEFAULT_OPENAI_VOICES : DEFAULT_MINIMAX_VOICES;
+    if (provider === "OpenAI") return DEFAULT_OPENAI_VOICES;
+    if (provider === "ElevenLabs") return DEFAULT_ELEVENLABS_VOICES;
+    return DEFAULT_MINIMAX_VOICES;
 }
 
 function voiceOptionsForConfig(config: VoiceApiConfig, fetchedVoices: Record<string, VoiceOption[]>): VoiceOption[] {
@@ -222,6 +237,7 @@ function makeCloneVoiceId(config: VoiceApiConfig): string {
 
 function providerSelectValue(config: VoiceApiConfig): string {
     if (config.provider === "OpenAI") return "OpenAI";
+    if (config.provider === "ElevenLabs") return "ElevenLabs";
     return config.baseUrl === GLOBAL_MINIMAX_BASE_URL ? "MinimaxGlobal" : "MinimaxCN";
 }
 
@@ -304,6 +320,17 @@ export function VoiceSettings() {
 
     const updateProvider = (id: string, providerOption: string) => {
         const current = configs.find(c => c.id === id);
+        if (providerOption === "ElevenLabs") {
+            updateConfig(id, {
+                provider: "ElevenLabs",
+                baseUrl: "https://api.elevenlabs.io/v1",
+                model: "eleven_multilingual_v2",
+                defaultVoice: "21m00Tcm4TlvDq8ikWAM",
+            });
+            setManualModelIds(prev => ({ ...prev, [id]: true }));
+            setManualVoiceIds(prev => ({ ...prev, [id]: false }));
+            return;
+        }
         if (providerOption === "OpenAI") {
             updateConfig(id, {
                 provider: "OpenAI",
@@ -677,7 +704,7 @@ export function VoiceSettings() {
                                                 placeholder="输入密钥..."
                                             />
                                         </div>
-                                        {config.provider === "OpenAI" && (
+                                        {(config.provider === "OpenAI" || config.provider === "ElevenLabs") && (
                                             <>
                                                 <div className="flex flex-col gap-1">
                                                     <label className="menu-desc ml-1">接口地址 (Base URL)</label>
@@ -685,7 +712,7 @@ export function VoiceSettings() {
                                                         type="text"
                                                         value={config.baseUrl || ""}
                                                         onChange={(e) => updateConfig(config.id, { baseUrl: e.target.value })}
-                                                        placeholder="https://api.openai.com/v1"
+                                                        placeholder={config.provider === "ElevenLabs" ? "https://api.elevenlabs.io/v1" : "https://api.openai.com/v1"}
                                                     />
                                                 </div>
                                                 <div className="flex flex-col gap-1">
@@ -709,6 +736,24 @@ export function VoiceSettings() {
                                                                 <List size={20} />
                                                             </button>
                                                         </div>
+                                                    ) : config.provider === "ElevenLabs" ? (
+                                                        <select
+                                                            value={config.model === "eleven_multilingual_v2" || config.model === "eleven_monolingual_v1" || config.model === "eleven_turbo_v2" || config.model === "eleven_multilingual_v1" ? config.model : "__manual__"}
+                                                            onChange={(e) => {
+                                                                if (e.target.value === "__manual__") {
+                                                                    setManualModelIds(prev => ({ ...prev, [config.id]: true }));
+                                                                    return;
+                                                                }
+                                                                updateConfig(config.id, { model: e.target.value });
+                                                            }}
+                                                            className="ui-select"
+                                                        >
+                                                            <option value="eleven_multilingual_v2">Eleven Multilingual v2</option>
+                                                            <option value="eleven_turbo_v2">Eleven Turbo v2</option>
+                                                            <option value="eleven_monolingual_v1">Eleven Monolingual v1</option>
+                                                            <option value="eleven_multilingual_v1">Eleven Multilingual v1</option>
+                                                            <option value="__manual__">手动输入...</option>
+                                                        </select>
                                                     ) : (
                                                         <select
                                                             value={config.model === "tts-1" || config.model === "tts-1-hd" ? config.model : "__manual__"}
@@ -851,7 +896,7 @@ export function VoiceSettings() {
                                                                 type="text"
                                                                 value={config.defaultVoice}
                                                                 onChange={(e) => updateConfig(config.id, { defaultVoice: e.target.value })}
-                                                                placeholder={config.provider === "OpenAI" ? "alloy" : "male-qn-qingse 或克隆 Voice ID"}
+                                                                placeholder={config.provider === "OpenAI" ? "alloy" : config.provider === "ElevenLabs" ? "Voice ID" : "male-qn-qingse 或克隆 Voice ID"}
                                                                 className="flex-1"
                                                             />
                                                             <button
