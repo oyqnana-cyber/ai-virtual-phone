@@ -29,8 +29,7 @@ const DEFAULT_SPEECH_PITCH = 0;
 const VOICE_PROVIDER_OPTIONS = [
     { value: "OpenAI", label: "OpenAI TTS" },
     { value: "ElevenLabs", label: "ElevenLabs" },
-    { value: "MinimaxCN", label: "Minimax 语音国内版" },
-    { value: "MinimaxGlobal", label: "Minimax 语音海外版" },
+    { value: "Minimax", label: "Minimax 语音" },
 ];
 
 const DEFAULT_VOICE_CONFIGS: VoiceApiConfig[] = [
@@ -213,9 +212,7 @@ function normalizeVoiceConfigs(configs: VoiceApiConfig[]): VoiceApiConfig[] {
         .filter(config => SUPPORTED_VOICE_PROVIDERS.has(config.provider))
         .map(config => {
             if (config.provider !== "Minimax") return config;
-            const baseUrl = MINIMAX_BASE_URL_OPTIONS.some(option => option.baseUrl === config.baseUrl)
-                ? config.baseUrl
-                : DEFAULT_MINIMAX_BASE_URL;
+            const baseUrl = config.baseUrl || DEFAULT_MINIMAX_BASE_URL;
             const speechSpeed = typeof config.speechSpeed === "number" && Number.isFinite(config.speechSpeed)
                 ? Math.min(MINIMAX_SPEED_MAX, Math.max(MINIMAX_SPEED_MIN, config.speechSpeed))
                 : DEFAULT_SPEECH_SPEED;
@@ -238,7 +235,7 @@ function makeCloneVoiceId(config: VoiceApiConfig): string {
 function providerSelectValue(config: VoiceApiConfig): string {
     if (config.provider === "OpenAI") return "OpenAI";
     if (config.provider === "ElevenLabs") return "ElevenLabs";
-    return config.baseUrl === GLOBAL_MINIMAX_BASE_URL ? "MinimaxGlobal" : "MinimaxCN";
+    return "Minimax";
 }
 
 export function VoiceSettings() {
@@ -345,7 +342,7 @@ export function VoiceSettings() {
         const wasMinimax = current?.provider === "Minimax";
         updateConfig(id, {
             provider: "Minimax",
-            baseUrl: providerOption === "MinimaxGlobal" ? GLOBAL_MINIMAX_BASE_URL : DEFAULT_MINIMAX_BASE_URL,
+            baseUrl: wasMinimax && current?.baseUrl ? current.baseUrl : DEFAULT_MINIMAX_BASE_URL,
             model: wasMinimax ? (current?.model || "speech-2.8-turbo") : "speech-2.8-turbo",
             defaultVoice: wasMinimax ? (current?.defaultVoice || "male-qn-qingse") : "male-qn-qingse",
             speechSpeed: wasMinimax ? (current?.speechSpeed ?? DEFAULT_SPEECH_SPEED) : DEFAULT_SPEECH_SPEED,
@@ -704,17 +701,17 @@ export function VoiceSettings() {
                                                 placeholder="输入密钥..."
                                             />
                                         </div>
+                                        <div className="flex flex-col gap-1">
+                                            <label className="menu-desc ml-1">接口地址 (Base URL)</label>
+                                            <Input
+                                                type="text"
+                                                value={config.baseUrl || ""}
+                                                onChange={(e) => updateConfig(config.id, { baseUrl: e.target.value })}
+                                                placeholder={config.provider === "ElevenLabs" ? "https://api.elevenlabs.io/v1" : config.provider === "Minimax" ? "https://api.minimaxi.com/v1" : "https://api.openai.com/v1"}
+                                            />
+                                        </div>
                                         {(config.provider === "OpenAI" || config.provider === "ElevenLabs") && (
                                             <>
-                                                <div className="flex flex-col gap-1">
-                                                    <label className="menu-desc ml-1">接口地址 (Base URL)</label>
-                                                    <Input
-                                                        type="text"
-                                                        value={config.baseUrl || ""}
-                                                        onChange={(e) => updateConfig(config.id, { baseUrl: e.target.value })}
-                                                        placeholder={config.provider === "ElevenLabs" ? "https://api.elevenlabs.io/v1" : "https://api.openai.com/v1"}
-                                                    />
-                                                </div>
                                                 <div className="flex flex-col gap-1">
                                                     <label className="menu-desc ml-1">语音模型 (TTS Model)</label>
                                                     {manualModelIds[config.id] ? (
